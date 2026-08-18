@@ -28,21 +28,21 @@ if ($PSVersionTable.PSVersion.Major -lt 5) {
 if (-not (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication)) {
     Write-Host "[2/4] Installing Microsoft.Graph.Authentication module (one-time)..." -ForegroundColor Cyan
     # Make the install fully non-interactive (no NuGet / untrusted-repo prompts on 5.1).
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
-    try { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser -Confirm:$false -ErrorAction SilentlyContinue | Out-Null } catch {}
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { Write-Verbose "TLS 1.2 could not be set: $_" }
+    try { Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser -Confirm:$false -ErrorAction SilentlyContinue | Out-Null } catch { Write-Verbose "NuGet provider bootstrap skipped: $_" }
     # Trust PSGallery only for this install, then restore the previous policy so we don't
     # permanently change the user's machine state.
     $prevGalleryPolicy = $null
-    try { $prevGalleryPolicy = (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue).InstallationPolicy } catch {}
+    try { $prevGalleryPolicy = (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue).InstallationPolicy } catch { Write-Verbose "Could not read PSGallery policy: $_" }
     try {
         if ($prevGalleryPolicy -and $prevGalleryPolicy -ne 'Trusted') {
-            try { Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue } catch {}
+            try { Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue } catch { Write-Verbose "Could not set PSGallery policy: $_" }
         }
         Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Force -AllowClobber -Confirm:$false -Repository PSGallery
     }
     finally {
         if ($prevGalleryPolicy -and $prevGalleryPolicy -ne 'Trusted') {
-            try { Set-PSRepository -Name PSGallery -InstallationPolicy $prevGalleryPolicy -ErrorAction SilentlyContinue } catch {}
+            try { Set-PSRepository -Name PSGallery -InstallationPolicy $prevGalleryPolicy -ErrorAction SilentlyContinue } catch { Write-Verbose "Could not restore PSGallery policy: $_" }
         }
     }
 }
@@ -52,7 +52,7 @@ else {
 Import-Module Microsoft.Graph.Authentication
 
 # --- GET helper that follows paging ---
-function Get-AllValues([string] $Uri) {
+function Get-GraphCollection([string] $Uri) {
     $items = [System.Collections.Generic.List[object]]::new()
     $next = $Uri
     while ($next) {
@@ -75,7 +75,7 @@ function Get-DeviceNameMap([object[]] $Settings) {
                     $json   = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($inst.payload)) | ConvertFrom-Json
                     $profId = ($json.profileId -replace '[{}]', '')
                     if ($profId -and $json.deviceDisplayName) { $map[$profId] = $json.deviceDisplayName }
-                } catch { }
+                } catch { Write-Verbose "Skipping undecodable payload: $_" }
             }
         }
     }
@@ -228,12 +228,12 @@ catch {
 
 # --- Blast radius (read what would be deleted) ---
 $settings = @()
-try { $settings = Get-AllValues "https://graph.microsoft.com/beta/users/$objId@$tenantId/settings/windows" }
+try { $settings = Get-GraphCollection "https://graph.microsoft.com/beta/users/$objId@$tenantId/settings/windows" }
 catch {
     $msg = $_.Exception.Message
-    $code = $null; try { $code = [int]$_.Exception.Response.StatusCode } catch {}
+    $code = $null; try { $code = [int]$_.Exception.Response.StatusCode } catch { Write-Verbose "No HTTP status code on exception." }
     if ($code -eq 403 -or $msg -match '403' -or $msg -match 'Forbidden') {
-        Show-AccessDeniedHelp ("read/delete the backup for '$target'") @('UserWindowsSettings.ReadWrite.All', 'User.Read.All') $ctx.Account
+        Show-AccessDeniedHelp -Operation ("read/delete the backup for '$target'") -RequiredScopes @('UserWindowsSettings.ReadWrite.All', 'User.Read.All') -Account $ctx.Account
     }
     else { Write-Host "Could not read backup for '$target': $msg" -ForegroundColor Red }
     return
@@ -283,9 +283,9 @@ try {
 }
 catch {
     $msg = $_.Exception.Message
-    $code = $null; try { $code = [int]$_.Exception.Response.StatusCode } catch {}
+    $code = $null; try { $code = [int]$_.Exception.Response.StatusCode } catch { Write-Verbose "No HTTP status code on exception." }
     if ($code -eq 403 -or $msg -match '403' -or $msg -match 'Forbidden') {
-        Show-AccessDeniedHelp ("delete the backup for '$target'") @('UserWindowsSettings.ReadWrite.All', 'User.Read.All') $ctx.Account
+        Show-AccessDeniedHelp -Operation ("delete the backup for '$target'") -RequiredScopes @('UserWindowsSettings.ReadWrite.All', 'User.Read.All') -Account $ctx.Account
     }
     else {
         Write-Host "Delete failed (HTTP $code): $msg" -ForegroundColor Red
