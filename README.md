@@ -28,27 +28,57 @@ They provide a simpler alternative to calling the Graph APIs directly.
 > The Microsoft 365 Backup Administrator role must be explicitly assigned.
 > Global Administrator alone returns HTTP 403.
 
-## Usage
+## Install
+
+The recommended way to use the tooling is the `WindowsBackupAdmin` module from
+the [PowerShell Gallery](https://www.powershellgallery.com/packages/WindowsBackupAdmin):
+
+```powershell
+Install-Module WindowsBackupAdmin -Scope CurrentUser
+```
+
+This also installs the required `Microsoft.Graph.Authentication` dependency. After
+installation the commands load automatically; no `Import-Module` is needed.
+
+## Usage (module)
 
 View your own backup:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\View-WindowsBackup.ps1
+Get-WindowsBackup
 ```
 
 View another user's backup (requires the admin role and consented scopes):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\View-WindowsBackup.ps1 -UserId user@contoso.com
+Get-WindowsBackup -UserId user@contoso.com
 ```
 
 Delete a user's backup (irreversible; prompts for confirmation):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Delete-WindowsBackup.ps1 -UserId user@contoso.com
+Remove-WindowsBackup -UserId user@contoso.com
 ```
 
-Use `-Fresh` on `View-WindowsBackup.ps1` to force a clean sign-in and switch accounts.
+Use `-Fresh` on `Get-WindowsBackup` to force a clean sign-in and switch accounts.
+
+The familiar names `View-WindowsBackup` and `Delete-WindowsBackup` are available
+as aliases for `Get-WindowsBackup` and `Remove-WindowsBackup`.
+
+## Usage (scripts directly)
+
+You can also run the scripts from this repository without installing the module:
+
+```powershell
+# View your own backup
+powershell -ExecutionPolicy Bypass -File .\View-WindowsBackup.ps1
+
+# View another user's backup
+powershell -ExecutionPolicy Bypass -File .\View-WindowsBackup.ps1 -UserId user@contoso.com
+
+# Delete a user's backup (irreversible; prompts for confirmation)
+powershell -ExecutionPolicy Bypass -File .\Delete-WindowsBackup.ps1 -UserId user@contoso.com
+```
 
 ## Third-party code
 
