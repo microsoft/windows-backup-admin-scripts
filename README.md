@@ -39,6 +39,13 @@ Install-Module WindowsBackupAdmin -Scope CurrentUser
 
 This also installs the required `Microsoft.Graph.Authentication` dependency. After
 installation the commands load automatically; no `Import-Module` is needed.
+ 
+ **Note:** If you see "running scripts is disabled on this system," allow signed
+ scripts once (per user, no admin required):
+
+ ```powershell
+ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+ ```
 
 ## Usage (module)
 
